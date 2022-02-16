@@ -1,17 +1,36 @@
 // "Link" til mit api tilknyttet en variabel, som jeg bruger til at fetche fra
 const URL = "http://localhost:8080/api"
 
+let sort
+
+// Her laver jeg en cache funktion, som kan gemme informationer i frontend, for at mindske kommunikatoinen mellem frontend og backend
+function localCache() {
+    let candidates = []
+
+    return {
+        getAll: () => candidates,
+        addAll: (all) => candidates = all,
+        deleteOne: (id) => candidates = candidates.filter(c => c.id !== Number(id)),
+        findById: (id) => candidates.find(c => c.id == id),
+        addEdit: (candidate, method) => {
+            if (method === "POST") {
+                candidates.push(candidate)
+            } else if (method === "PUT") {
+                candidates = candidates.map(c => c.id == candidate.id ? candidate : c)
+            }
+        }
+    }
+}
+
 // Fetch funktion der læser indhold fra databasen via. mit api.
 function fetchCandidates() {
     fetch(URL)
-        .then(function (response) {
-            return response.json();
-        })
-        .then(function (data) {
+        .then((res => res.json()))
+        .then(data =>  {
             cache.addAll(data);
             //console.log(candidates)
             makeTableRows()
-        });
+        })
 }
 
 // Metode der laver rækkerne i tabellen, ved at bruge data fra min cache
@@ -22,30 +41,11 @@ function makeTableRows() {
            <td>${c.name}</td>
            <td>${c.politicalParty}</td>
            <td>${c.votes}</td>
-           <td><button data-id-delete=${c.id} class="btn-danger" href="#">Slet</button></td>
-           <td><button data-id-edit='${c.id}' class="btn-primary" href="#" >Rediger</button> </td>
+           <td><button data-id-delete=${c.id} class="btn-danger" > Slet</button></td>
+           <td><button data-id-edit='${c.id}' class="btn-primary" > Rediger</button> </td>
          </tr>
         `)
     document.getElementById("t-body").innerHTML = rows.join("")
-}
-
-// Her laver jeg en cache funktion, som kan gemme informationer i frontend, for at mindske kommunikatoinen mellem frontend og backend
-function localCache() {
-    let candidates = []
-    const addEdit = (candidate, method) => {
-        if (method === "POST") {
-            candidates.push(candidate)
-        } else if (method === "PUT") {
-            candidates = candidates.map(c => c.id == candidate.id ? candidate : c)
-        }
-    }
-    return {
-        getAll: () => candidates,
-        addAll: (all) => candidates = all,
-        deleteOne: (id) => candidates = candidates.filter(c => c.id !== Number(id)),
-        findById: (id) => candidates.find(c => c.id == id),
-        addEdit: addEdit
-    }
 }
 
 // Funktion der opsætter handlers (tilknytter funktioner til diverse id's med onclick)
@@ -60,6 +60,7 @@ setHandlers()
 
 // Funktion der håndtere mouse events i min tabel, samt fetch til delete
 function handleTable(evt) {
+    // For at stoppe eventbubbling
     evt.preventDefault()
     evt.stopPropagation()
     const target = evt.target;
@@ -75,11 +76,9 @@ function handleTable(evt) {
             .then(res => {
                 if (res.ok) {
                     cache.deleteOne(idToDelete)
-                    console.log(idToDelete)
                     makeTableRows()
-                    location.reload()
                 }
-            })
+            }).catch(e=>alert(e))
     }
     // Hvis der trykkes på rediger, hentes her det matchende objekt via cache, som kalder displayModal med det objekt som parametre
     if (target.dataset.idEdit) {
@@ -100,6 +99,17 @@ function displayModal(candidate) {
 
     modal.show()
 }
+
+// Funktion der kalder displayModal med et tomt Candidate objekt, så disse fields kan få værdier når man taster dem ind via. web
+function newCandidate() {
+    displayModal({
+        id : null,
+        name: "",
+        politicalParty: "",
+        votes: ""
+    })
+}
+
 
 // Metode der gemmer en ny kandidat i databasen, eller gemmer den redigerede Candidate i databasen
 function saveCandidate() {
@@ -123,7 +133,7 @@ function saveCandidate() {
     fetch(url,options)
         .then(res=>{
             if(!res.ok){
-                throw "Fejl, der kunne ikke oprettes eller redigeres"
+                throw new Error(`HTTP error! Status: ${res.status}`)
             }
             return res.json()
         })
@@ -134,30 +144,37 @@ function saveCandidate() {
         .catch(e=>alert(e))
 }
 
-// Funktion der kalder displayModal med et tomt Candidate objekt, så disse fields kan få værdier når man taster dem ind via. web
-function newCandidate() {
-    displayModal({
-        id : null,
-        name: "",
-        politicalParty: "",
-        votes: ""
-    })
-}
 
 // Funktion der sortere efter parti
 function filterParty() {
-    const list = cache.getAll().sort((a,b) => {
-        if(a.politicalParty < b.politicalParty) {
-            return -1
-        } if(a.politicalParty > b.politicalParty) {
-            return 1
-        }
-        return 0
-    })
-    cache.addAll(list)
-    makeTableRows(cache.getAll())
-    console.log(list)
+    if(sort) {
+        const list = cache.getAll().sort((a,b) => {
+            if(a.politicalParty.toLowerCase() > b.politicalParty.toLowerCase()) {
+                return -1
+            } if(a.politicalParty.toLowerCase() < b.politicalParty.toLowerCase()) {
+                return 1
+            }
+            return 0
+        })
+        makeTableRows()
+        console.log(list)
+        sort = false;
+
+    } else {
+        const list = cache.getAll().sort((a,b) => {
+            if(a.politicalParty.toLowerCase() < b.politicalParty.toLowerCase()) {
+                return -1
+            } if(a.politicalParty.toLowerCase() > b.politicalParty.toLowerCase()) {
+                return 1
+            }
+            return 0
+        })
+        makeTableRows()
+        console.log(list)
+        sort = true;
+    }
 }
+
 
 // Her loader jeg fra mit eksterne link (google charts)
 google.charts.load('current', {'packages':['corechart']});
@@ -165,15 +182,37 @@ google.charts.setOnLoadCallback(drawChart);
 
 // Funktion der tegner et google chart over stemmerne fordelt på de forskellige partier
 function drawChart() {
+    let socialdemo = 0, konservertiveFolkeparti = 0, socialistiskFolkeparti = 0, danskFolkeparti=  0, venstre = 0, enhedslisten = 0
+    cache.getAll().forEach(c => {
+
+        if (c.politicalParty === "A")
+            socialdemo += c.votes
+
+        if (c.politicalParty === "C")
+            konservertiveFolkeparti += c.votes
+
+        if (c.politicalParty === "SF")
+            socialistiskFolkeparti += c.votes
+
+        if (c.politicalParty === "DF")
+            danskFolkeparti += c.votes
+
+        if (c.politicalParty === "V")
+            venstre += c.votes
+
+        if (c.politicalParty === "Ø")
+            enhedslisten += c.votes
+    })
+
     // Her visualisere google et array og laver det om til et diagram (DETTE ER HENTET FRA GOOGLE - se kildehenvisning)
     const chartData = google.visualization.arrayToDataTable([
-        ['Task', 'Total votes'],
-        ['Socialdemokratiet (A)', 749],
-        ['Socialistisk folkeparti (F)', 309],
-        ['Det konservative folkeparti (C)', 539],
-        ['Dansk Folkeparti (DF)', 21],
-        ['Venstre (V)', 586],
-        ['Enhedslisten (Ø)', 76]
+        ['Political party', 'Total votes'],
+        ['Socialdemokratiet (A)', socialdemo],
+        ['Socialistisk folkeparti (F)', socialistiskFolkeparti],
+        ['Det konservative folkeparti (C)', konservertiveFolkeparti],
+        ['Dansk Folkeparti (DF)', danskFolkeparti],
+        ['Venstre (V)', venstre],
+        ['Enhedslisten (Ø)', enhedslisten]
     ]);
 
     const options = {'title': 'Stemmer i alt fordelt på partierne', 'width': 450, 'height': 350}
@@ -183,9 +222,12 @@ function drawChart() {
 
 //  Funktion der viser min chart modal (Den er tilknyttet en knap i min setHandler funktion)
 function displayChartModal() {
+    drawChart()
     const chartModal = new bootstrap.Modal(document.getElementById('chart-Modal'))
     chartModal.show()
 }
 
 const cache = localCache()
 fetchCandidates()
+
+

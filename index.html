@@ -33,7 +33,7 @@
         <tr>
             <th> Id</th>
             <th> Navn </th>
-            <th>Parti <button id="party-filter"> Sorter efter parti</button></th>
+            <th>Parti <button id="party-filter" class="btn btn-light"> Sorter efter parti</button></th>
             <th>Antal stemmer</th>
         </tr>
         </thead>
@@ -67,7 +67,7 @@
                         <input type="text" class="form-control" id="input-politicalParty">
                     </div>
                     <div class="mb-3">
-                        <label for="input-votes" class="form-label">Votes</label>
+                        <label for="input-votes" class="form-label">Stemmer</label>
                         <input type="number" class="form-control" id="input-votes">
                     </div>
                 </form>
@@ -85,15 +85,15 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <button type="button" class="close" data-dismiss="modal">&times;</button>
                 <h4 class="modal-title">Diagram over stemmer</h4>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"> </button>
             </div>
             <div class="modal-body">
                 <p></p>
             </div>
             <div id="chart-div"></div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-default" data-dismiss="modal">Luk ned</button>
+                <button type="button" class="btn btn-default" data-bs-dismiss="modal">Luk ned</button>
             </div>
         </div>
     </div>
